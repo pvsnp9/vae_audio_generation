@@ -50,7 +50,7 @@ class HyperParams:
 class RawHyperParams:
     device: torch.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
-    batch_size: int = 32
+    batch_size: int = 64
     validation_size:float = 0.2
     num_blocks:int = 2
     latent_dim:int = 32
@@ -58,7 +58,7 @@ class RawHyperParams:
     input_channels:int = 1
     input_length: float = input_size[0] * input_size[1]
 
-    hidden_dims:list[int] =(16, 32, 64) #List of hidden channel dimensions for encoder blocks.
+    hidden_dims:list[int] =(16, 32) #List of hidden channel dimensions for encoder blocks.
 
     lr: float = 1e-5
     num_epochs: int = 50
@@ -87,3 +87,6 @@ class RawHyperParams:
     duration: int = 30 # seconds
     offset:float = 0.0
 
+    # stats computed from data
+    mean:float = -0.000761
+    std: float = 0.143788

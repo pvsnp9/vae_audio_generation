@@ -129,9 +129,6 @@ class ResenetVAE(nn.Module):
         x_recon: torch.Tensor = self.final_layer(x_dec)
         # Adjust output length to match input_length.
         x_recon = self.adjust_layer(x_recon)
-        x_recon = torch.tanh(x_recon)
-        # scale to match actual data [-1.2, 1.18]
-        x_recon = x_recon * 1.19 - 0.01
         return x_recon
     
     def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:

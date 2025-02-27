@@ -11,6 +11,7 @@ from spectrogramdataset import SpectrogramDataset
 from torch.utils.data import DataLoader
 from typing import Tuple
 import numpy as np
+from raw_dataset import AudioDataset 
 
 def get_audio_metadata(file_path:str)->tuple:
     try:
@@ -182,15 +183,25 @@ def plot_generated_audio(audio: torch.Tensor, sample_rate: int = 3000) -> None:
     plt.show()
 
 
-def vae_loss(x: torch.Tensor,  x_recon: torch.Tensor, mu: torch.Tensor, logvar: torch.Tensor, beta:float = 0.9) -> Tuple[torch.Tensor, ...]:
+def vae_loss(x: torch.Tensor,  x_recon: torch.Tensor, mu: torch.Tensor, logvar: torch.Tensor, beta:float = 1.0) -> Tuple[torch.Tensor, ...]:
     # MSE
-    mse_loss = F.mse_loss(x_recon, x, reduction="mean")
-    
-    # KL (corrected scaling)
-    kl_per_sample = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp(), dim=1)
-    kl_loss = torch.mean(kl_per_sample)
-    
-    # Beta-weighted loss
-    total_loss = mse_loss + beta * kl_loss
+    mse = F.mse_loss(x_recon, x, reduction='mean')
+    kl = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp()).mean()
+    return mse + beta*kl, mse, kl
 
-    return total_loss, mse_loss, kl_loss
+
+def compute_audio_stats(dataset: AudioDataset) -> Tuple[float, float]:
+    all_waveforms = []
+    
+    # 1. Collect all waveforms
+    for waveform, _ in dataset:  # (channels, samples)
+        all_waveforms.append(waveform)
+    
+    # 2. Stack into single tensor
+    stacked = torch.cat(all_waveforms, dim=1)  # (channels, all_samples)
+    
+    # 3. Compute statistics
+    mean = torch.mean(stacked).item()
+    std = torch.std(stacked).item()
+    
+    return mean, std
