@@ -6,12 +6,15 @@ import torchaudio.transforms as T
 import matplotlib.pyplot as plt
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
-from hyperparams import HyperParams
+from hyperparams import HyperParams, TVAEParams
 from spectrogramdataset import SpectrogramDataset
 from torch.utils.data import DataLoader
 from typing import Tuple
 import numpy as np
+from tvae import TVAE
 from raw_dataset import AudioDataset 
+import soundfile as sf
+import math
 
 def get_audio_metadata(file_path:str)->tuple:
     try:
@@ -184,13 +187,18 @@ def plot_generated_audio(audio: torch.Tensor, sample_rate: int = 3000) -> None:
 
 
 def vae_loss(x: torch.Tensor,  x_recon: torch.Tensor, mu: torch.Tensor, logvar: torch.Tensor, beta:float = 1.0) -> Tuple[torch.Tensor, ...]:
-    # MSE
-    mse = F.mse_loss(x_recon, x, reduction='mean')
-    kl = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp()).mean()
-    return mse + beta*kl, mse, kl
+    # Reconstruction loss: mean squared error
+    mse_loss = F.mse_loss(x_recon, x, reduction='mean')
+    
+    # KL divergence loss: sum over latent dims, then average over batch.
+    kl_loss = -0.5 * torch.mean(torch.sum(1 + logvar - mu.pow(2) - logvar.exp(), dim=1))
+    
+    total_loss = mse_loss + beta * kl_loss
+    return total_loss, mse_loss, kl_loss
 
 
 def compute_audio_stats(dataset: AudioDataset) -> Tuple[float, float]:
+
     all_waveforms = []
     
     # 1. Collect all waveforms
@@ -205,3 +213,76 @@ def compute_audio_stats(dataset: AudioDataset) -> Tuple[float, float]:
     std = torch.std(stacked).item()
     
     return mean, std
+
+
+def get_sinusoidal_positional_encoding(seq_len: int, d_model: int, device: torch.device = None) -> torch.Tensor:
+    """
+    Args:
+        seq_len (int): Length of the sequence.
+        d_model (int): Dimensionality of the model.
+        device (torch.device, optional): Device to place the tensor.
+    
+    Returns:
+        Tensor of shape [seq_len, d_model] with positional encodings.
+    """
+    pe = torch.zeros(seq_len, d_model)
+    position = torch.arange(0, seq_len, dtype=torch.float).unsqueeze(1)
+    div_term = torch.exp(torch.arange(0, d_model, 2, dtype=torch.float) * -(math.log(10000.0) / d_model))
+    pe[:, 0::2] = torch.sin(position * div_term)
+    pe[:, 1::2] = torch.cos(position * div_term)
+    if device is not None:
+        pe = pe.to(device)
+    return pe
+
+
+
+
+
+
+
+def save_generated_audio(model: TVAE, hp:TVAEParams, n_batches: int = 1, channel: int = 3) -> None:
+    """
+    Args:
+        model (TVAE): The trained TVAE model.
+        n_batches (int): Number of audio batches (files) to generate.
+        channels (int): Number of audio samples per batch or channels in one audio
+    """
+    # Ensure output directory exists.
+    os.makedirs(hp.output_audio_dir, exist_ok=True)
+    model.eval()  # Set model to evaluation mode
+
+    with torch.no_grad():
+        for i in range(n_batches):
+            try:
+                # The output shape [batch_size, max_len, 1]
+                generated = model.generate_music(hp=hp, batch_size=channel, max_len=hp.sampling_rate)
+                
+                # Convert tensor to NumPy array and squeeze the last dimension.
+                # [channel, max_len, 1] -> [channel, max_len]
+                generated_np = generated.squeeze(-1).cpu().numpy()
+                
+                # For saving as a WAV file, we want shape [max_len, channels]
+                # Transpose
+                generated_np = generated_np.T  # [max_len, channel]
+                
+                # Define output file path.
+                output_path = os.path.join(hp.output_audio_dir, f"tave_generated_audio_batch_{i+1}.wav")
+                
+                # Write the WAV file.
+                sf.write(output_path, generated_np, samplerate=hp.sampling_rate)
+                print(f"Saved generated audio batch {i+1} to {output_path}")
+            except Exception as e:
+                print(f"Error during generation or saving batch {i+1}: {e}")
+
+
+# if __name__ == "__main__":
+#     # Initialize hyperparameters and model.
+#     hp = TVAEParams()
+#     device = hp.device
+#     model = TVAE(hp).to(device)
+    
+#     # Optionally load a checkpoint here:
+#     # model.load_checkpoint("path/to/checkpoint.pth")
+    
+#     # Generate and save 3 batches (each with 5 audio samples of length 8000)
+#     save_generated_audio(model,hp=hp)

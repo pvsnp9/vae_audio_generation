@@ -90,3 +90,49 @@ class RawHyperParams:
     # stats computed from data
     mean:float = -0.000761
     std: float = 0.143788
+
+
+@dataclass
+class TVAEParams:
+    device: torch.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # Transformer params
+    d_model: int = 128
+    n_heads: int = 8
+    num_layers: int = 8
+    seq_len:int = 1024
+    window_step:int = 1
+    
+    batch_size: int = 128
+    validation_size:float = 0.2
+    latent_dim:int = 64
+    input_size: list[int] = (seq_len,1)
+    input_channels:int = 1
+
+    lr: float = 1e-5
+    num_epochs: int = 50
+
+    # directories
+    data_root_dir:str = "data"
+    data_genres_original_dir:str = "data/genres_original"
+    data_images_original_dir:str = "data/images_original"
+    spectrogram_data_dir:str = "data/spectrograms"
+
+    model_dir:str = "models"
+    model_file_name:str = "tvae.pth"
+    output_dir:str = "outputs"
+
+    output_audio_dir:str = "outputs/audio"
+
+    log_dir:str = "log"
+    train_log_file:str = "tvaetrainlog.json"
+
+
+    # audio params
+    sampling_rate:float = 16000
+    duration: int = 10 # seconds
+    offset:float = 0.0
+
+    # stats computed from data
+    #mean:float = -0.000761
+    #std: float = 0.143788
